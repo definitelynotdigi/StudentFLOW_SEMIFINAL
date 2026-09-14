@@ -79,7 +79,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
             $mail->Port       = 587;
 
-            $mail->setFrom($mail->Username, 'GRC Student Portal');
+            $mail->setFrom($mail->Username, 'StudentFLOW Portal');
             $mail->addAddress($email);
             $mail->isHTML(true);
             $mail->Subject = 'Password Reset OTP Verification Code';
@@ -272,7 +272,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
             $mail->Port       = 587;
 
-            $mail->setFrom($mail->Username, 'GRC Student Portal');
+            $mail->setFrom($mail->Username, 'StudentFLOW');
             $mail->addAddress($email);
             $mail->isHTML(true);
             $mail->Subject = 'Account Registration OTP Code';
@@ -509,7 +509,7 @@ if (isset($_GET['login_error'])) {
                         </li>
                     <?php endif; ?>
                     <li class="nav-item me-3">
-                        <a class="nav-link fw-medium" href="#" data-bs-toggle="modal" data-bs-target="#aboutModal">About GRC</a>
+                        <a class="nav-link fw-medium" href="#" data-bs-toggle="modal" data-bs-target="#aboutModal">About</a>
                     </li>
                     <?php if (isset($_SESSION['user_id'])): ?>
                         <li class="nav-item">
@@ -562,11 +562,12 @@ if (isset($_GET['login_error'])) {
     </header>
 
     <!-- Core Portal Features -->
+    <!-- Core Portal Features -->
     <section class="py-5">
         <div class="container">
             <h2 class="text-center fw-bold mb-5 text-dark">Portal Capabilities</h2>
             <div class="row g-4 text-center">
-                <div class="col-md-4">
+                <div class="col-md-6 col-lg-3">
                     <div class="card feature-card h-100 p-4">
                         <div class="card-body">
                             <i class="bi bi-mortarboard-fill text-grc display-4 mb-3 d-block"></i>
@@ -575,7 +576,7 @@ if (isset($_GET['login_error'])) {
                         </div>
                     </div>
                 </div>
-                <div class="col-md-4">
+                <div class="col-md-6 col-lg-3">
                     <div class="card feature-card h-100 p-4">
                         <div class="card-body">
                             <i class="bi bi-receipt-cutoff text-grc display-4 mb-3 d-block"></i>
@@ -584,12 +585,21 @@ if (isset($_GET['login_error'])) {
                         </div>
                     </div>
                 </div>
-                <div class="col-md-4">
+                <div class="col-md-6 col-lg-3">
                     <div class="card feature-card h-100 p-4">
                         <div class="card-body">
                             <i class="bi bi-printer-fill text-grc display-4 mb-3 d-block"></i>
                             <h5 class="card-title fw-bold text-dark">Print Manifests</h5>
                             <p class="card-text text-muted">Generate official printable PDF documents, grade certificates, and enrollment verifications.</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6 col-lg-3">
+                    <div class="card feature-card h-100 p-4">
+                        <div class="card-body">
+                            <i class="bi bi-megaphone-fill text-grc display-4 mb-3 d-block"></i>
+                            <h5 class="card-title fw-bold text-dark">Portal Announcements</h5>
+                            <p class="card-text text-muted">Stay updated with official campus news, events, academic notices, and department updates.</p>
                         </div>
                     </div>
                 </div>
