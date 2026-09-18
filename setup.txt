@@ -1,106 +1,834 @@
--- 1. Create Database
-CREATE DATABASE IF NOT EXISTS `student_portal_db` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
-USE `student_portal_db`;
+/* =========================================================
+   STUDENTFLOW / STUDENT PORTAL SYSTEM
+   DATABASE: student_portal_db
 
--- 2. Clean Up Existing Tables
+   WORKFLOW:
+   PROFESSOR
+       ↓
+   Encode Grade Records
+       ↓
+   academic_records
+       ↓
+   Submit to Admin
+       ↓
+   faculty_submissions
+       ↓
+   ADMIN
+       ↓
+   Review
+       ↓
+   Approve & Publish
+       ↓
+   academic_records.workflow_status = 'published'
+       ↓
+   STUDENT
+       ↓
+   Final Output
+   ========================================================= */
+
+CREATE DATABASE IF NOT EXISTS student_portal_db
+CHARACTER SET utf8mb4
+COLLATE utf8mb4_unicode_ci;
+
+USE student_portal_db;
+
+
+/* =========================================================
+   1. REMOVE OLD TABLES
+   ========================================================= */
+
 SET FOREIGN_KEY_CHECKS = 0;
-DROP TABLE IF EXISTS `announcements`;
-DROP TABLE IF EXISTS `financial_ledgers`;
-DROP TABLE IF EXISTS `academic_records`;
-DROP TABLE IF EXISTS `users`;
+
+DROP TABLE IF EXISTS audit_logs;
+DROP TABLE IF EXISTS announcement_reads;
+DROP TABLE IF EXISTS support_messages;
+DROP TABLE IF EXISTS financial_ledgers;
+DROP TABLE IF EXISTS faculty_submissions;
+DROP TABLE IF EXISTS academic_records;
+DROP TABLE IF EXISTS enrollments;
+DROP TABLE IF EXISTS subjects;
+DROP TABLE IF EXISTS announcements;
+DROP TABLE IF EXISTS users;
+
 SET FOREIGN_KEY_CHECKS = 1;
 
--- 3. Create Users Table
-CREATE TABLE `users` (
-  `id` INT(11) NOT NULL AUTO_INCREMENT,
-  `username` VARCHAR(50) NOT NULL,
-  `email` VARCHAR(100) NOT NULL,
-  `password_hash` VARCHAR(255) NOT NULL,
-  `role` ENUM('Student', 'Department', 'Admin') NOT NULL,
-  `student_id` VARCHAR(50) DEFAULT NULL,
-  `first_name` VARCHAR(50) DEFAULT NULL,
-  `last_name` VARCHAR(50) DEFAULT NULL,
-  `phone` VARCHAR(20) DEFAULT NULL,
-  `department_course` VARCHAR(100) DEFAULT NULL,
-  `otp_code` VARCHAR(10) DEFAULT NULL,
-  `otp_expires` DATETIME DEFAULT NULL,
-  `is_verified` TINYINT(1) DEFAULT 0,
-  `failed_attempts` INT(11) DEFAULT 0,
-  `lockout_until` DATETIME DEFAULT NULL,
-  `reset_token` VARCHAR(255) DEFAULT NULL,
-  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP(),
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `username` (`username`),
-  UNIQUE KEY `email` (`email`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- 4. Create Academic Records Table
-CREATE TABLE `academic_records` (
-  `id` INT(11) NOT NULL AUTO_INCREMENT,
-  `student_id` INT(11) NOT NULL,
-  `subject_code` VARCHAR(20) NOT NULL,
-  `subject_title` VARCHAR(100) NOT NULL,
-  `grade` DECIMAL(3,2) NOT NULL,
-  `semester` VARCHAR(20) NOT NULL,
-  `academic_year` VARCHAR(15) NOT NULL,
-  PRIMARY KEY (`id`),
-  KEY `student_id` (`student_id`),
-  CONSTRAINT `fk_academic_records_student` 
-    FOREIGN KEY (`student_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+/* =========================================================
+   2. USERS
+   ========================================================= */
 
--- 5. Create Financial Ledgers Table
-CREATE TABLE `financial_ledgers` (
-  `id` INT(11) NOT NULL AUTO_INCREMENT,
-  `student_id` INT(11) NOT NULL,
-  `description` VARCHAR(100) NOT NULL,
-  `amount` DECIMAL(10,2) NOT NULL,
-  `transaction_type` ENUM('Charge', 'Payment') NOT NULL,
-  `transaction_date` TIMESTAMP DEFAULT CURRENT_TIMESTAMP(),
-  PRIMARY KEY (`id`),
-  KEY `student_id` (`student_id`),
-  CONSTRAINT `fk_financial_ledgers_student` 
-    FOREIGN KEY (`student_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE users (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
 
--- 6. Create Announcements Table
-CREATE TABLE `announcements` (
-  `id` INT(11) NOT NULL AUTO_INCREMENT,
-  `title` VARCHAR(255) NOT NULL,
-  `content` TEXT NOT NULL,
-  `posted_by` VARCHAR(50) NOT NULL,
-  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP(),
-  PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    username VARCHAR(100) NOT NULL,
+    email VARCHAR(190) NOT NULL,
 
-CREATE TABLE IF NOT EXISTS support_messages (
+    password_hash VARCHAR(255) NOT NULL,
+
+    role ENUM(
+        'Student',
+        'Professor',
+        'Faculty',
+        'Department',
+        'Admin'
+    ) NOT NULL DEFAULT 'Student',
+
+    /*
+       Visible ID:
+       Student  = 2025-01-001
+       Professor = PROF-001
+       Admin = ADMIN-001
+       Department = DEPT-001
+    */
+    student_id VARCHAR(50) DEFAULT NULL,
+
+    first_name VARCHAR(100) DEFAULT NULL,
+    last_name VARCHAR(100) DEFAULT NULL,
+    phone VARCHAR(30) DEFAULT NULL,
+
+    department_course VARCHAR(150) DEFAULT NULL,
+
+    /* OTP / verification */
+    otp_code VARCHAR(20) DEFAULT NULL,
+    otp_expires DATETIME DEFAULT NULL,
+    is_verified TINYINT(1) NOT NULL DEFAULT 0,
+
+    /* Login security */
+    failed_attempts INT NOT NULL DEFAULT 0,
+    lockout_until DATETIME DEFAULT NULL,
+
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+
+    UNIQUE KEY uq_users_username (username),
+    UNIQUE KEY uq_users_email (email),
+    UNIQUE KEY uq_users_student_id (student_id),
+
+    INDEX idx_users_role (role),
+    INDEX idx_users_student_id (student_id)
+) ENGINE=InnoDB;
+
+
+/* =========================================================
+   3. SUBJECTS
+   ========================================================= */
+
+CREATE TABLE subjects (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+
+    subject_code VARCHAR(50) NOT NULL,
+    subject_title VARCHAR(255) NOT NULL,
+
+    department VARCHAR(150) DEFAULT NULL,
+
+    units DECIMAL(4,2) NOT NULL DEFAULT 3.00,
+
+    semester VARCHAR(50) DEFAULT NULL,
+    academic_year VARCHAR(20) DEFAULT NULL,
+
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+
+    UNIQUE KEY uq_subject_code (subject_code),
+
+    INDEX idx_subject_department (department)
+) ENGINE=InnoDB;
+
+
+/* =========================================================
+   4. ENROLLMENTS
+   ========================================================= */
+
+CREATE TABLE enrollments (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+
+    student_id INT UNSIGNED NOT NULL,
+    subject_id INT UNSIGNED NOT NULL,
+
+    semester VARCHAR(50) NOT NULL,
+    academic_year VARCHAR(20) NOT NULL,
+
+    status ENUM(
+        'Enrolled',
+        'Dropped',
+        'Completed',
+        'Cancelled'
+    ) NOT NULL DEFAULT 'Enrolled',
+
+    enrolled_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    UNIQUE KEY uq_enrollment (
+        student_id,
+        subject_id,
+        semester,
+        academic_year
+    ),
+
+    INDEX idx_enrollment_student (student_id),
+    INDEX idx_enrollment_subject (subject_id),
+
+    CONSTRAINT fk_enrollment_student
+        FOREIGN KEY (student_id)
+        REFERENCES users(id)
+        ON DELETE CASCADE
+        ON UPDATE CASCADE,
+
+    CONSTRAINT fk_enrollment_subject
+        FOREIGN KEY (subject_id)
+        REFERENCES subjects(id)
+        ON DELETE CASCADE
+        ON UPDATE CASCADE
+) ENGINE=InnoDB;
+
+
+/* =========================================================
+   5. ANNOUNCEMENTS
+   ========================================================= */
+
+CREATE TABLE announcements (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+
+    title VARCHAR(255) NOT NULL,
+    content TEXT NOT NULL,
+
+    posted_by VARCHAR(150) NOT NULL,
+
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+
+    INDEX idx_announcements_date (created_at)
+) ENGINE=InnoDB;
+
+
+/* =========================================================
+   6. ACADEMIC RECORDS
+   =========================================================
+
+   PROFESSOR creates the record.
+
+   Initial status:
+       submitted
+
+   ADMIN approves it:
+
+       published
+
+   STUDENT only sees:
+       published
+   ========================================================= */
+
+-- 1. Create Notifications Table
+CREATE TABLE IF NOT EXISTS notifications (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    user_id INT UNSIGNED NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    message TEXT NOT NULL,
+    is_read TINYINT(1) DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_notifications_user 
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE academic_records (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+
+    /* Internal users.id */
+    faculty_id INT UNSIGNED NOT NULL,
+    student_id INT UNSIGNED NOT NULL,
+
+    /* Optional subject relationship */
+    subject_id INT UNSIGNED DEFAULT NULL,
+
+    /* Subject information */
+    subject_code VARCHAR(50) NOT NULL,
+    subject_title VARCHAR(255) NOT NULL,
+
+    /* Grade components */
+    attendance DECIMAL(6,2) NOT NULL DEFAULT 0.00,
+    quizzes DECIMAL(6,2) NOT NULL DEFAULT 0.00,
+
+    prelim_exam DECIMAL(6,2) NOT NULL DEFAULT 0.00,
+    midterm_exam DECIMAL(6,2) NOT NULL DEFAULT 0.00,
+    final_exam DECIMAL(6,2) NOT NULL DEFAULT 0.00,
+
+    /* Weighted computed score */
+    final_score DECIMAL(6,2) DEFAULT NULL,
+
+    /* Final Philippine-style grade */
+    grade DECIMAL(4,2) DEFAULT NULL,
+
+    semester VARCHAR(50) NOT NULL,
+    academic_year VARCHAR(20) NOT NULL,
+
+    /*
+       Professor-side visibility
+       0 = active
+       1 = cleared from Professor's view
+    */
+    cleared_by_faculty TINYINT(1) NOT NULL DEFAULT 0,
+
+    /*
+       MAIN WORKFLOW STATUS
+
+       draft
+       submitted
+       returned
+       published
+    */
+    workflow_status ENUM(
+        'draft',
+        'submitted',
+        'returned',
+        'published'
+    ) NOT NULL DEFAULT 'submitted',
+
+    /* Professor submitted record */
+    submitted_at DATETIME DEFAULT NULL,
+
+    /* Admin approval */
+    approved_at DATETIME DEFAULT NULL,
+    approved_by INT UNSIGNED DEFAULT NULL,
+
+    /* Student publication */
+    published_at DATETIME DEFAULT NULL,
+    published_by INT UNSIGNED DEFAULT NULL,
+
+    /* Admin remarks when returned/reviewed */
+    admin_remarks TEXT DEFAULT NULL,
+
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+
+    /*
+       Prevent duplicate subject record
+       for the same student and academic term.
+    */
+    UNIQUE KEY uq_student_subject_term (
+        student_id,
+        subject_code,
+        semester,
+        academic_year
+    ),
+
+    INDEX idx_academic_student (student_id),
+    INDEX idx_academic_faculty (faculty_id),
+    INDEX idx_academic_subject (subject_id),
+    INDEX idx_academic_status (workflow_status),
+    INDEX idx_academic_student_status (
+        student_id,
+        workflow_status
+    ),
+
+    CONSTRAINT fk_academic_faculty
+        FOREIGN KEY (faculty_id)
+        REFERENCES users(id)
+        ON DELETE CASCADE
+        ON UPDATE CASCADE,
+
+    CONSTRAINT fk_academic_student
+        FOREIGN KEY (student_id)
+        REFERENCES users(id)
+        ON DELETE CASCADE
+        ON UPDATE CASCADE,
+
+    CONSTRAINT fk_academic_subject
+        FOREIGN KEY (subject_id)
+        REFERENCES subjects(id)
+        ON DELETE SET NULL
+        ON UPDATE CASCADE,
+
+    CONSTRAINT fk_academic_approved_by
+        FOREIGN KEY (approved_by)
+        REFERENCES users(id)
+        ON DELETE SET NULL
+        ON UPDATE CASCADE,
+
+    CONSTRAINT fk_academic_published_by
+        FOREIGN KEY (published_by)
+        REFERENCES users(id)
+        ON DELETE SET NULL
+        ON UPDATE CASCADE
+) ENGINE=InnoDB;
+
+
+/* =========================================================
+   7. FACULTY SUBMISSIONS
+   =========================================================
+
+   PROFESSOR
+       ↓
+   faculty_submissions
+       ↓
+   ADMIN
+
+   admin_id is the INTERNAL users.id.
+
+   Example:
+
+   users.id       = 15
+   users.student_id = ADMIN-001
+
+   faculty_submissions.admin_id = 15
+   ========================================================= */
+
+CREATE TABLE faculty_submissions (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+
+    /* Professor's users.id */
+    faculty_id INT UNSIGNED NOT NULL,
+
+    /* Student's users.id */
+    student_id INT UNSIGNED NOT NULL,
+
+    /* Admin's users.id */
+    admin_id INT UNSIGNED NOT NULL,
+
+    /*
+       Kept for compatibility/display
+       with older dashboard code.
+    */
+    admin_target_id VARCHAR(50) DEFAULT NULL,
+
+    /*
+       Submission workflow
+    */
+    submission_status ENUM(
+        'submitted',
+        'returned',
+        'approved',
+        'published'
+    ) NOT NULL DEFAULT 'submitted',
+
+    /*
+       Old dashboard compatibility
+       0 = pending
+       1 = cleared/reviewed
+    */
+    cleared_by_admin TINYINT(1) NOT NULL DEFAULT 0,
+
+    remarks TEXT DEFAULT NULL,
+
+    submitted_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    reviewed_at DATETIME DEFAULT NULL,
+
+    reviewed_by INT UNSIGNED DEFAULT NULL,
+
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+
+    INDEX idx_submission_faculty (faculty_id),
+    INDEX idx_submission_student (student_id),
+    INDEX idx_submission_admin (admin_id),
+    INDEX idx_submission_status (submission_status),
+
+    INDEX idx_admin_pending (
+        admin_id,
+        submission_status,
+        cleared_by_admin
+    ),
+
+    CONSTRAINT fk_submission_faculty
+        FOREIGN KEY (faculty_id)
+        REFERENCES users(id)
+        ON DELETE CASCADE
+        ON UPDATE CASCADE,
+
+    CONSTRAINT fk_submission_student
+        FOREIGN KEY (student_id)
+        REFERENCES users(id)
+        ON DELETE CASCADE
+        ON UPDATE CASCADE,
+
+    CONSTRAINT fk_submission_admin
+        FOREIGN KEY (admin_id)
+        REFERENCES users(id)
+        ON DELETE CASCADE
+        ON UPDATE CASCADE,
+
+    CONSTRAINT fk_submission_reviewer
+        FOREIGN KEY (reviewed_by)
+        REFERENCES users(id)
+        ON DELETE SET NULL
+        ON UPDATE CASCADE
+) ENGINE=InnoDB;
+
+
+/* =========================================================
+   8. SUPPORT MESSAGES
+   ========================================================= */
+
+CREATE TABLE support_messages (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+
+    /* Student's users.id */
+    user_id INT UNSIGNED NOT NULL,
+
+    sender_role ENUM(
+        'student',
+        'admin',
+        'department',
+        'professor'
+    ) NOT NULL DEFAULT 'student',
+
+    message TEXT NOT NULL,
+
+    is_read TINYINT(1) NOT NULL DEFAULT 0,
+
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    INDEX idx_support_user (user_id),
+    INDEX idx_support_read (is_read),
+
+    CONSTRAINT fk_support_user
+        FOREIGN KEY (user_id)
+        REFERENCES users(id)
+        ON DELETE CASCADE
+        ON UPDATE CASCADE
+) ENGINE=InnoDB;
+
+
+/* =========================================================
+   9. FINANCIAL LEDGER
+   ========================================================= */
+
+CREATE TABLE financial_ledgers (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+
+    /* Student's users.id */
+    student_id INT UNSIGNED NOT NULL,
+
+    description VARCHAR(255) NOT NULL,
+
+    amount DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+
+    transaction_type ENUM(
+        'Charge',
+        'Payment'
+    ) NOT NULL,
+
+    transaction_date DATE NOT NULL,
+
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    INDEX idx_financial_student (student_id),
+    INDEX idx_financial_date (transaction_date),
+
+    CONSTRAINT fk_financial_student
+        FOREIGN KEY (student_id)
+        REFERENCES users(id)
+        ON DELETE CASCADE
+        ON UPDATE CASCADE
+) ENGINE=InnoDB;
+
+
+/* =========================================================
+   10. ANNOUNCEMENT READS
+   ========================================================= */
+
+CREATE TABLE announcement_reads (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+
+    announcement_id INT UNSIGNED NOT NULL,
+    user_id INT UNSIGNED NOT NULL,
+
+    read_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    UNIQUE KEY uq_announcement_read (
+        announcement_id,
+        user_id
+    ),
+
+    CONSTRAINT fk_announcement_read_announcement
+        FOREIGN KEY (announcement_id)
+        REFERENCES announcements(id)
+        ON DELETE CASCADE
+        ON UPDATE CASCADE,
+
+    CONSTRAINT fk_announcement_read_user
+        FOREIGN KEY (user_id)
+        REFERENCES users(id)
+        ON DELETE CASCADE
+        ON UPDATE CASCADE
+) ENGINE=InnoDB;
+
+
+/* =========================================================
+   11. AUDIT LOGS
+   ========================================================= */
+
+CREATE TABLE audit_logs (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+
+    user_id INT UNSIGNED DEFAULT NULL,
+
+    action VARCHAR(100) NOT NULL,
+
+    table_name VARCHAR(100) DEFAULT NULL,
+
+    record_id INT UNSIGNED DEFAULT NULL,
+
+    description TEXT DEFAULT NULL,
+
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    INDEX idx_audit_user (user_id),
+    INDEX idx_audit_action (action),
+    INDEX idx_audit_date (created_at),
+
+    CONSTRAINT fk_audit_user
+        FOREIGN KEY (user_id)
+        REFERENCES users(id)
+        ON DELETE SET NULL
+        ON UPDATE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS notifications (
     id INT AUTO_INCREMENT PRIMARY KEY,
     user_id INT NOT NULL,
-    sender_role ENUM('student', 'admin') NOT NULL DEFAULT 'student',
+    title VARCHAR(255) NOT NULL,
     message TEXT NOT NULL,
     is_read TINYINT(1) DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
-ALTER TABLE users 
-ADD COLUMN last_login DATETIME DEFAULT NULL,
-ADD COLUMN last_logout DATETIME DEFAULT NULL,
-ADD COLUMN is_online TINYINT(1) DEFAULT 0;
 
--- 7. Insert Initial Seed Data
-INSERT INTO `users` (`id`, `username`, `email`, `password_hash`, `role`, `student_id`, `first_name`, `last_name`, `is_verified`) VALUES
-(1, 'student2026', 'student@grc.edu.ph', '$2y$10$f.kOnZ5b7tYt3V6pExRbeuqGZfP6u9m2YvGstZ2.Iofm7L1Xj0u7G', 'Student', '2026-00-00001', 'Default', 'Student', 1),
-(2, 'ccs_dept', 'department@grc.edu.ph', '$2y$10$f.kOnZ5b7tYt3V6pExRbeuqGZfP6u9m2YvGstZ2.Iofm7L1Xj0u7G', 'Department', 'DEP-2026-001', 'CCS', 'Department', 1),
-(3, 'admin_grc', 'admin@grc.edu.ph', '$2y$10$f.kOnZ5b7tYt3V6pExRbeuqGZfP6u9m2YvGstZ2.Iofm7L1Xj0u7G', 'Admin', 'ADM-2026-001', 'System', 'Admin', 1);
+/* =========================================================
+   12. DEFAULT SUBJECTS
+   ========================================================= */
 
-INSERT INTO `academic_records` (`student_id`, `subject_code`, `subject_title`, `grade`, `semester`, `academic_year`) VALUES
-(1, 'SYSARC1', 'Systems Architecture 1', 1.25, '1st Semester', '2025-2026'),
-(1, 'SIA2', 'Systems Integration & Architecture', 1.50, '1st Semester', '2025-2026');
+INSERT INTO subjects
+(
+    subject_code,
+    subject_title,
+    department,
+    units,
+    semester,
+    academic_year
+)
+VALUES
+(
+    'SIA2',
+    'System Integration and Architecture 2',
+    'BSIT',
+    3.00,
+    '2nd Semester',
+    '2025-2026'
+),
+(
+    'SYSARC1',
+    'System Architecture 1',
+    'BSIT',
+    3.00,
+    '1st Semester',
+    '2025-2026'
+),
+(
+    'PROFLEC2',
+    'Professional Elective 2',
+    'BSIT',
+    3.00,
+    '2nd Semester',
+    '2025-2026'
+),
+(
+    'BMC',
+    'Business Management Course',
+    'BSIT',
+    3.00,
+    '2nd Semester',
+    '2025-2026'
+),
+(
+    'SYSARC2',
+    'System Architecture 2',
+    'BSIT',
+    3.00,
+    '2nd Semester',
+    '2025-2026'
+);
 
-INSERT INTO `financial_ledgers` (`student_id`, `description`, `amount`, `transaction_type`) VALUES
-(1, 'Tuition Fee - 1st Semester Baseline', 15000.00, 'Charge'),
-(1, 'Partial Examination Payment Received', 5000.00, 'Payment');
 
-INSERT INTO `announcements` (`title`, `content`, `posted_by`) VALUES
-('Welcome to GRC Student Portal', 'Please review the system architectural integration files for SIA2 updates.', 'Admin System');
+/* =========================================================
+   13. USEFUL VIEWS
+   ========================================================= */
+
+/*
+   ADMIN VIEW:
+   All grade submissions waiting for Admin review.
+*/
+
+CREATE OR REPLACE VIEW admin_pending_grade_submissions AS
+SELECT
+    fs.id AS submission_id,
+
+    fs.faculty_id,
+    CONCAT(
+        COALESCE(f.first_name, ''),
+        ' ',
+        COALESCE(f.last_name, '')
+    ) AS professor_name,
+    f.username AS professor_username,
+    f.student_id AS professor_code,
+
+    fs.student_id,
+    CONCAT(
+        COALESCE(s.first_name, ''),
+        ' ',
+        COALESCE(s.last_name, '')
+    ) AS student_name,
+    s.student_id AS student_code,
+
+    fs.admin_id,
+    a.username AS admin_username,
+    a.student_id AS admin_code,
+
+    fs.submission_status,
+    fs.cleared_by_admin,
+    fs.remarks,
+
+    fs.submitted_at,
+    fs.reviewed_at
+
+FROM faculty_submissions fs
+
+INNER JOIN users f
+    ON fs.faculty_id = f.id
+
+INNER JOIN users s
+    ON fs.student_id = s.id
+
+INNER JOIN users a
+    ON fs.admin_id = a.id
+
+WHERE fs.submission_status = 'submitted'
+  AND fs.cleared_by_admin = 0;
+
+
+/*
+   STUDENT FINAL OUTPUT:
+   Only published academic records.
+*/
+
+CREATE OR REPLACE VIEW student_published_grades AS
+SELECT
+    ar.id,
+
+    ar.student_id,
+
+    s.student_id AS student_code,
+
+    CONCAT(
+        COALESCE(s.first_name, ''),
+        ' ',
+        COALESCE(s.last_name, '')
+    ) AS student_name,
+
+    ar.faculty_id,
+
+    CONCAT(
+        COALESCE(f.first_name, ''),
+        ' ',
+        COALESCE(f.last_name, '')
+    ) AS professor_name,
+
+    ar.subject_code,
+    ar.subject_title,
+
+    ar.attendance,
+    ar.quizzes,
+    ar.prelim_exam,
+    ar.midterm_exam,
+    ar.final_exam,
+
+    ar.final_score,
+    ar.grade,
+
+    ar.semester,
+    ar.academic_year,
+
+    ar.workflow_status,
+
+    ar.published_at
+
+FROM academic_records ar
+
+INNER JOIN users s
+    ON ar.student_id = s.id
+
+INNER JOIN users f
+    ON ar.faculty_id = f.id
+
+WHERE ar.workflow_status = 'published';
+
+
+/* =========================================================
+   14. CHECK THE DATABASE
+   ========================================================= */
+
+SELECT
+    TABLE_NAME
+FROM information_schema.TABLES
+WHERE TABLE_SCHEMA = 'student_portal_db'
+ORDER BY TABLE_NAME;
+
+
+/* =========================================================
+   15. SHOW THE WORKFLOW
+   ========================================================= */
+
+SELECT
+    'Professor' AS workflow_step,
+    'Encode grades' AS action,
+    'academic_records' AS destination
+
+UNION ALL
+
+SELECT
+    'Professor',
+    'Submit grade records to Admin',
+    'faculty_submissions'
+
+UNION ALL
+
+SELECT
+    'Admin',
+    'Review grade records',
+    'faculty_submissions'
+
+UNION ALL
+
+SELECT
+    'Admin',
+    'Approve and Publish',
+    'academic_records.workflow_status'
+
+UNION ALL
+
+SELECT
+    'Student',
+    'View published grades',
+    'student_published_grades';
+
+USE student_portal_db;
+
+-- 1. Add the missing is_released column
+ALTER TABLE academic_records 
+ADD COLUMN is_released TINYINT(1) NOT NULL DEFAULT 0 AFTER workflow_status;
+
+-- 2. Add the missing cleared_by_student column
+ALTER TABLE academic_records 
+ADD COLUMN cleared_by_student TINYINT(1) NOT NULL DEFAULT 0 AFTER cleared_by_faculty;
+
+-- 3. Automatically mark all published records as released
+UPDATE academic_records 
+SET is_released = 1 
+WHERE workflow_status = 'published';

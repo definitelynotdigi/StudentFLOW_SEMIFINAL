@@ -562,7 +562,6 @@ if (isset($_GET['login_error'])) {
     </header>
 
     <!-- Core Portal Features -->
-    <!-- Core Portal Features -->
     <section class="py-5">
         <div class="container">
             <h2 class="text-center fw-bold mb-5 text-dark">Portal Capabilities</h2>
@@ -659,7 +658,7 @@ if (isset($_GET['login_error'])) {
                     <button type="button" class="btn-close btn-close-white float-end" data-bs-dismiss="modal" aria-label="Close"></button>
                     <img src="assets/grc4.png" alt="GRC Logo" class="mb-2" style="height: 55px; width: auto; object-fit: contain;">
                     <h4 class="mb-0 fw-bold">Global Reciprocal Colleges</h4>
-                    <small style="color: #ffcccc; font-weight: 600; letter-spacing: 1px;">STUDENT PORTAL LOGIN</small>
+                    <small style="color: #ffcccc; font-weight: 600; letter-spacing: 1px;">STUDENT & FACULTY PORTAL LOGIN</small>
                 </div>
                 <div class="modal-body p-4">
                     
@@ -740,7 +739,7 @@ if (isset($_GET['login_error'])) {
                     <?php endif; ?>
 
                     <?php if ($reg_step === 1): ?>
-                        <p class="text-secondary small text-center mb-3">Fill in your details to register as a Student or Department User.</p>
+                        <p class="text-secondary small text-center mb-3">Fill in your details to register as a Student, Professor, or Department User.</p>
                         
                         <form method="POST">
                             <input type="hidden" name="action" value="reg_submit_details">
@@ -751,6 +750,7 @@ if (isset($_GET['login_error'])) {
                                     <label class="form-label small fw-semibold text-dark">Role</label>
                                     <select name="role" id="roleSelect" class="form-select form-select-sm" required>
                                         <option value="Student">Student</option>
+                                        <option value="Professor">Professor / Faculty</option>
                                         <option value="Department">Department</option>
                                     </select>
                                 </div>
@@ -1092,6 +1092,9 @@ if (isset($_GET['login_error'])) {
                 if (roleSelect.value === 'Department') {
                     idLabel.textContent = 'Dept ID';
                     idInput.placeholder = 'DEP-20XX-XXX';
+                } else if (roleSelect.value === 'Professor') {
+                    idLabel.textContent = 'Faculty ID';
+                    idInput.placeholder = 'FAC-20XX-XXX';
                 } else {
                     idLabel.textContent = 'Student ID';
                     idInput.placeholder = '2024-08-01129';

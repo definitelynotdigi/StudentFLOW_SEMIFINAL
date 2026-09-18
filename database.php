@@ -1,14 +1,14 @@
 <?php
-// database.php - PDO Database Driver Connection
 $config = require_once 'config.php';
 
-$host    = $config['db']['host'] ?? 'localhost';
-$db      = $config['db']['name'] ?? 'student_portal_db';
-$user    = $config['db']['user'] ?? 'root';
-$pass    = $config['db']['pass'] ?? '';
-$charset = 'utf8mb4';
+$host     = '127.0.0.1'; // or 'localhost'
+$db       = 'student_portal_db';
+$user     = 'root';      // replace with your DB username
+$pass     = '';          // replace with your DB password
+$charset  = 'utf8mb4';
 
-$dsn = "mysql:host=$host;dbname=$db;charset=$charset";
+$dsn = "mysql:host={$host};dbname={$db};charset={$charset}";
+
 $options = [
     PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
     PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
@@ -18,6 +18,6 @@ $options = [
 try {
     $pdo = new PDO($dsn, $user, $pass, $options);
 } catch (\PDOException $e) {
-    die("Database Connection Error: " . $e->getMessage());
+    throw new \PDOException($e->getMessage(), (int)$e->getCode());
 }
 ?>
